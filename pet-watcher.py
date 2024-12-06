@@ -7,6 +7,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.application import MIMEApplication
 from datetime import datetime, timedelta
 import os
+import sys
 
 # Configuration
 CONTOUR_THRESHOLD = 1000 # 500 was original value and pretty sensitive
@@ -24,9 +25,10 @@ if (not SENDER_USERNAME or not RECEIVER_EMAIL or not SENDER_PASSWORD):
     exit(9)
 
 print("Email settings:")
-print(f"  Username: {SENDER_USERNAME}")
-print(f"  ApiKey:   {SENDER_PASSWORD[:3]}")
-print(f"  To      : {RECEIVER_EMAIL}")
+print(f"  Username:   {SENDER_USERNAME}")
+print(f"  ApiKey:     {SENDER_PASSWORD[:3]}...")
+print(f"  To:         {RECEIVER_EMAIL}")
+print(f"  Time limit: {TIME_LIMIT}")
 
 # File to store the time of the last email
 LAST_EMAIL_FILE = "last_email_time.txt"
@@ -39,10 +41,13 @@ if not os.path.exists(IMAGE_SAVE_DIR):
 # Initialize variables
 last_email_time = None
 
-# Read the last email sent time from file
-if os.path.exists(LAST_EMAIL_FILE):
-    with open(LAST_EMAIL_FILE, "r") as file:
-        last_email_time = datetime.fromisoformat(file.read().strip())
+# # Read the last email sent time from file
+# if os.path.exists(LAST_EMAIL_FILE):
+#     with open(LAST_EMAIL_FILE, "r") as file:
+#         last_email_time = datetime.fromisoformat(file.read().strip())
+last_email_time = datetime.fromisoformat('2020-01-01')
+
+# print(f"  Last email time {last_email_time}")
 
 # Setup the camera using Picamera2
 picam2 = Picamera2()
@@ -79,8 +84,8 @@ def send_email(image_path):
         print(f"Email sent with image: {image_path}")
 
         # Update the last email time
-        with open(LAST_EMAIL_FILE, "w") as file:
-            file.write(datetime.now().isoformat())
+        # with open(LAST_EMAIL_FILE, "w") as file:
+        #     file.write(datetime.now().isoformat())
 
     except Exception as e:
         print(f"Error sending email: {e}")
@@ -90,7 +95,7 @@ def detect_motion():
     global last_email_time
 
     # Start the camera stream
-    print("Starting motion detection...")
+    # print("Starting motion detection...")
     time.sleep(2)  # Let the camera warm up
 
     # Initialize the background subtractor for motion detection
@@ -98,17 +103,17 @@ def detect_motion():
 
     firstPass = True
     while True:
-        print("capturing array...")
+        # print("capturing array...")
         # Capture an image
         frame = picam2.capture_array()
 
         # Convert the image to grayscale for motion detection
-        print("converting...")
+        # print("converting...")
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         fgmask = fgbg.apply(gray)
 
         # Find contours (moving objects)
-        print("finding contours...")
+        # print("finding contours...")
         contours, _ = cv2.findContours(fgmask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
         motion_detected = False
@@ -119,24 +124,26 @@ def detect_motion():
                 break
 
         if motion_detected and not firstPass:
-            print("Motion detected!")
+            # Save the image to a file with a timestamp
+            image_path = os.path.join(IMAGE_SAVE_DIR, f"motion_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg")
+            cv2.imwrite(image_path, frame)
+            print("Motion detected! Image written to ", image_path)
 
             # Check if enough time has passed since the last email
             if last_email_time is None or datetime.now() - last_email_time > TIME_LIMIT:
-                # Save the image to a file with a timestamp
-                image_path = os.path.join(IMAGE_SAVE_DIR, f"motion_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg")
-                cv2.imwrite(image_path, frame)
-                print("Image written to ",image_path)
-
-                # Send email with the image attached
+                print(f"Sending email since {datetime.now()} - {last_email_time} > {TIME_LIMIT}")
                 send_email(image_path)
+                last_email_time = datetime.now()
+            else:
+                print(f"Not sending email since {datetime.now()} - {last_email_time} <= {TIME_LIMIT}")
         else:
             print(f"No motion detected. First pass is {firstPass}")
 
         firstPass = False
 
         # Wait for the specified check interval
-        print(f"Sleeping for {CHECK_INTERVAL}s")
+        # print(f"Sleeping for {CHECK_INTERVAL}s")
+        sys.stdout.flush()
         time.sleep(CHECK_INTERVAL)
 
 # Run the motion detection
