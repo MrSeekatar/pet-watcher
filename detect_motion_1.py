@@ -77,3 +77,15 @@ def detect_motion(last_email_time, CONTOUR_THRESHOLD, IMAGE_SAVE_DIR, CHECK_INTE
         sys.stdout.flush()
         time.sleep(CHECK_INTERVAL)
 
+if __name__ == "__main__":
+    setup_camera()
+    CONTOUR_THRESHOLD = 1000 # 500 was original value and pretty sensitive
+    SENDER_USERNAME = os.getenv("mail_username")
+    SENDER_PASSWORD = os.getenv("mail_appKey")
+    RECEIVER_EMAIL = os.getenv("mail_to")
+    CHECK_INTERVAL = 5 # Interval between motion checks (in seconds)
+    TIME_LIMIT = timedelta(hours=1)  # Limit time between emails
+    IMAGE_SAVE_DIR = "motion_images"  # Directory where images will be saved
+    last_email_time = datetime.fromisoformat('2020-01-01')
+
+    detect_motion(last_email_time, CONTOUR_THRESHOLD, IMAGE_SAVE_DIR, CHECK_INTERVAL, TIME_LIMIT)

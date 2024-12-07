@@ -7,13 +7,17 @@ def setup_camera():
     pass
 
 def detect_motion(last_email_time, CONTOUR_THRESHOLD, IMAGE_SAVE_DIR, CHECK_INTERVAL, TIME_LIMIT):
-    cap = cv2.VideoCapture(0)
+    os.environ["GST_DEBUG"] = "3"
+    pipeline = "v4l2src device=/dev/video0 ! videoconvert ! appsink"
+    cap = cv2.VideoCapture(pipeline, cv2.CAP_GSTREAMER)
+    # cap = cv2.VideoCapture(0, cv2.CAP_V4L2)
     first_frame = None
 
     print("Starting detecting")
     while True:
         ret, frame = cap.read()
         if not ret:
+            print("Breaking since cap.read() returned False")
             break
 
         print("converting")

@@ -8,11 +8,15 @@ I poked around on the we at examples, and thought I'd let AI have a shot. I star
 Create an application for the raspberry pi that uses a camera and when it detects movement  sends an email to me, if one hasn't been sent within the last hour
 ```
 
-It did _pretty_ well. The basics were there, but it used `picamera` instead of `picamera2`. After telling it to use that, it was pretty close, and only took an hour or so to get things working. One issue I found that running it in an SSH prompt would break the connection. (As when running in VSCode Remoting). I found it would work ok, if run in the background.
+It did _pretty_ well. The basics were there, but it used `picamera` instead of `picamera2`. After telling it to use that, it was pretty close, and only took an hour or so to get things working.
+
+When running on a 3B with no UI, I found that running it in an SSH prompt would break the connection. (As when running in VSCode Remoting). I found it would work ok, if run in the background.
 
 ```bash
 python3 pet-watcher.py &
 ```
+
+I bought a 5B that came with the OS installed with the UI and it ran better. I bought a new AI camera, too, and didn't get the false movements I got so many times on the 3B with an older camera.
 
 ## Running
 
