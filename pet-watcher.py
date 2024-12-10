@@ -2,7 +2,7 @@ import time
 import cv2
 from picamera2 import Picamera2
 from datetime import datetime, timedelta
-from detect_motion_1 import setup_camera, detect_motion
+from detect_motion_3 import setup_camera, detect_motion
 import os
 import sys
 

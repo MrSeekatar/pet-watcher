@@ -5,7 +5,13 @@ from picamera2 import Picamera2
 import cv2
 import os
 
-def initCamera():
+from send_email import send_email
+
+picam2 = None
+
+def setup_camera():
+    global picam2
+
     # Initialize the camera
     picam2 = Picamera2()
     # config = picam2.create_preview_configuration(main={"size": (640, 480)})
@@ -14,11 +20,12 @@ def initCamera():
     picam2.start()
     return picam2
 
-# 200 doesn't work
+# Threshold 200 doesn't work
 # 100 works, but slow motion is detected
 # 50 works, pretty well
 # 25 works
-def detect_motion_ai_camera(picam2, threshold=25, min_area=500):
+# min_area up to 15000 works since that's the change area
+def detect_motion_ai_camera(picam2, threshold=25, min_area=500, image_save_dir="motion_images"):
     """
     Detect motion using Raspberry Pi Camera Module and Picamera2.
 
@@ -48,10 +55,12 @@ def detect_motion_ai_camera(picam2, threshold=25, min_area=500):
             if (motionDetected is not None) and (time.time() - motionDetected > 2):
                 # capture the current image and write it out
                 print(f"Motion detected at {motionDetected}, and > 2 sec has passed")
-                frame = picam2.capture_array()
-                cv2.imwrite("motion_images/motion_detected.jpg", frame)
+                frame = cv2.cvtColor(picam2.capture_array(), cv2.COLOR_BGR2RGB)
+                path = os.path.join(image_save_dir, "motion_detected.jpg")
+                cv2.imwrite(path, frame)
                 motionDetected = None
                 logged = False
+                return path
                 break
             elif motionDetected is not None:
                 if (not logged):
@@ -104,7 +113,7 @@ def detect_motion_ai_camera(picam2, threshold=25, min_area=500):
 
                 # write out the current cv2 image
                 motionDetected = time.time()
-                cv2.imwrite("motion_images/motion_detected_cv2.jpg", frame)
+                cv2.imwrite(os.path.join(image_save_dir, "motion_detected_cv2.jpg"), frame)
 
             # if not rectSet:
                 # print("No motion detected.")
@@ -137,6 +146,16 @@ def detect_motion_ai_camera(picam2, threshold=25, min_area=500):
     # print("Motion detection stopped.")
     # picam2.stop()
 
+def detect_motion(last_email_time, CONTOUR_THRESHOLD, IMAGE_SAVE_DIR, CHECK_INTERVAL, time_limit):
+    global picam2
+    while True:
+        image_path = detect_motion_ai_camera(picam2, 25, 1000, IMAGE_SAVE_DIR)
+        # to do only send if not w/i last hour
+        send_email(image_path)
+        print(f"Sleeping for {time_limit} minutes")
+        time.sleep(time_limit*60)  # Sleep for 5 minutes
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Motion detection with optional threshold and min_area.")
     parser.add_argument("--threshold", type=int, default=25, help="Threshold value for motion detection.")
@@ -144,11 +163,7 @@ if __name__ == "__main__":
         
     args = parser.parse_args()
 
-    picam2 = initCamera()
-    for i in range(10):
-        print(f"Starting motion detection with threshold: {args.threshold} and min_area: {args.min_area}")
-        detect_motion_ai_camera(picam2, args.threshold, args.min_area)
-        print("Sleeping for 10 seconds.")
-        time.sleep(10)
+    setup_camera()
+    detect_motion(time.time(), 25, "motion_images", 19, .5)
 
     picam2.stop()

@@ -13,6 +13,10 @@ def send_email(image_path):
     RECEIVER_EMAIL = os.getenv("mail_to")
     SENDER_EMAIL = "Cat Watcher"
 
+    if image_path is None:
+        print("No image to send")
+        return
+    
     try:
         # Prepare the email
         msg = MIMEMultipart()
