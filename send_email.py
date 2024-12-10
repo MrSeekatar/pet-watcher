@@ -1,30 +1,66 @@
 import smtplib
+from typing import Optional
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.mime.application import MIMEApplication
 import os
+import sys
+import configparser
+import logging
+logger = logging.getLogger(__name__)
+console_handler = logging.StreamHandler(sys.stdout)
+console_handler.setLevel(logging.INFO)
+formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+console_handler.setFormatter(formatter)
+logger.addHandler(console_handler)
+logger.setLevel(logging.INFO)
 
-SMTP_SERVER = "smtp.gmail.com"
-SMTP_PORT = 587
+class MailOptions:
+    def __init__(self, mail):
+        if mail is None:
+            return
+        # required fields
+        self.username = mail['username']
+        self.password = mail['password']
+        self.to_email = mail['to']
 
-def send_email(image_path):
-    SENDER_USERNAME = os.getenv("mail_username")
-    SENDER_PASSWORD = os.getenv("mail_appKey")
-    RECEIVER_EMAIL = os.getenv("mail_to")
-    SENDER_EMAIL = "Cat Watcher"
+        # optional fields
+        self.from_email = mail.get('from', 'Cat Watcher')
+        self.smtp_server = mail.get('smtp_server', 'smtp.gmail.com')
+        self.smtp_port = mail.getint('smtp_port', 587)
+        self.subject = mail.get('subject', 'Motion Detected')
+        self.message = mail.get('message','Motion has been detected by your Raspberry Pi camera. Please find the attached image.')
+
+def get_email_config() -> Optional[MailOptions]:
+    config = configparser.ConfigParser()
+    config.read('email.ini')
+    mail = config['email']
+    if mail is None:
+        logger.error('Email configuration not found in email.ini')
+        return None
+    else:
+        ret = MailOptions(mail)
+        logger.info('Email settings:')
+        logger.info(f'  Username:   {ret.username}')
+        logger.info(f'  ApiKey:     {ret.password[:3]}...')
+        logger.info(f'  To:         {ret.to_email}')
+
+    return ret
+
+def send_email(mail : MailOptions, image_path : str) -> None:
 
     if image_path is None:
-        print("No image to send")
+        logger.info('No image to send')
         return
     
     try:
         # Prepare the email
         msg = MIMEMultipart()
-        msg['From'] = SENDER_EMAIL
-        msg['To'] = RECEIVER_EMAIL
-        msg['Subject'] = 'Motion Detected!'
+        msg['From'] = mail.from_email
+        msg['To'] = mail.to_email
+        msg['Subject'] = mail.subject
 
-        body = "Motion has been detected by your Raspberry Pi camera. Please find the attached image."
+        body = mail.message
         msg.attach(MIMEText(body, 'plain'))
 
         # Attach the image
@@ -34,19 +70,18 @@ def send_email(image_path):
             msg.attach(part)
 
         # Connect to the SMTP server and send the email
-        server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
+        server = smtplib.SMTP(mail.smtp_server, mail.smtp_port)
         server.starttls()
-        server.login(SENDER_USERNAME, SENDER_PASSWORD)
+        server.login(mail.username, mail.password)
         text = msg.as_string()
-        server.sendmail(SENDER_EMAIL, RECEIVER_EMAIL, text)
+        server.sendmail(mail.from_email, mail.to_email, text)
         server.quit()
 
-        print(f"Email sent with image: {image_path}")
-
-        # Update the last email time
-        # with open(LAST_EMAIL_FILE, "w") as file:
-        #     file.write(datetime.now().isoformat())
+        logger.info(f"Email sent with image: {image_path}")
 
     except Exception as e:
-        print(f"Error sending email: {e}")
+        logger.exception(f"Error sending email: {e}")
 
+if __name__ == "__main__":
+    mail = get_email_config()
+    send_email(mail, "motion_images/motion_detected.jpg")

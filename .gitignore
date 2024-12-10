@@ -193,4 +193,5 @@ init-dont-commit.sh
 .vscode
 *.jpg
 motion_images
+*.ini
 nohup.out
