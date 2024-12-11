@@ -1,5 +1,4 @@
 import smtplib
-from typing import Optional
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.mime.application import MIMEApplication
@@ -7,6 +6,7 @@ import os
 import sys
 import configparser
 import logging
+
 logger = logging.getLogger(__name__)
 console_handler = logging.StreamHandler(sys.stdout)
 console_handler.setLevel(logging.INFO)
@@ -16,7 +16,11 @@ logger.addHandler(console_handler)
 logger.setLevel(logging.INFO)
 
 class MailOptions:
-    def __init__(self, mail):
+    """
+    Class to hold email configuration options
+
+    """
+    def __init__(self, mail: dict):
         if mail is None:
             return
         # required fields
@@ -31,7 +35,7 @@ class MailOptions:
         self.subject = mail.get('subject', 'Motion Detected')
         self.message = mail.get('message','Motion has been detected by your Raspberry Pi camera. Please find the attached image.')
 
-def get_email_config() -> Optional[MailOptions]:
+def get_email_config() -> MailOptions | None:
     config = configparser.ConfigParser()
     config.read('email.ini')
     mail = config['email']
@@ -41,13 +45,21 @@ def get_email_config() -> Optional[MailOptions]:
     else:
         ret = MailOptions(mail)
         logger.info('Email settings:')
-        logger.info(f'  Username:   {ret.username}')
-        logger.info(f'  ApiKey:     {ret.password[:3]}...')
-        logger.info(f'  To:         {ret.to_email}')
+        logger.info('  Username:   %s', ret.username)
+        logger.info('  ApiKey:     %s...', ret.password[:3])
+        logger.info('  To:         %s', ret.to_email)
 
     return ret
 
 def send_email(mail : MailOptions, image_path : str) -> None:
+    """
+    Send an email with an image attachment
+
+    Args:
+        mail: MailOptions object with email configuration
+        image_path: Path to the image to send
+
+    """
 
     if image_path is None:
         logger.info('No image to send')

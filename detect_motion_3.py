@@ -1,31 +1,87 @@
 #! /usr/bin/env python3
-import argparse
-import time
-from picamera2 import Picamera2
-import cv2
+import configparser
+import logging
 import os
+import sys
+import time
 
-from send_email import send_email
+import cv2
+import picamera2
 
-picam2 = None
+import send_email
 
-def setup_camera():
-    global picam2
+logger = logging.getLogger(__name__)
+console_handler = logging.StreamHandler(sys.stdout)
+console_handler.setLevel(logging.INFO)
+formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+console_handler.setFormatter(formatter)
+logger.addHandler(console_handler)
+logger.setLevel(logging.INFO)
+
+class MotionOptions:
+    """
+    This class is used to store the motion options
+
+
+    """
+    def __init__(self, config: dict):
+        if config is None:
+            return
+
+        # optional fields
+        self.threshold = config.getint('threshold', 25)
+        self.min_area = config.getint('min_area',500)
+        self.image_save_dir = config.get('image_save_dir', 'motion_images')
+        self.can_display = os.environ.get("DISPLAY") is not None
+        self.image_delay_seconds = config.getfloat('image_delay_seconds', 1.0)
+        self.time_limit_minutes = config.getint('time_limit_minutes', 2)
+
+        self.picam2 : picamera2.PiCamera2 = None
+
+    @staticmethod
+    def get_motion_options():
+        """
+        Get the motion options from the configuration file
+
+        """
+        config = configparser.ConfigParser()
+        config.read('motion.ini')
+        motion = config['motion']
+        if motion is None:
+            logger.error('Motion configuration not found in motion.ini')
+            return None
+        else:
+            ret = MotionOptions(motion)
+            logger.info('Motion settings:')
+            logger.info('  Threshold:   %s', ret.threshold)
+            logger.info('  Min Area:    %s', ret.min_area)
+            logger.info('  Image Save Dir: %s', ret.image_save_dir)
+            logger.info('  Can Display: %s', ret.can_display)
+
+        return ret
+
+def setup():
+
+    options = MotionOptions.get_motion_options()
+
+    if options is None:
+        return None
 
     # Initialize the camera
-    picam2 = Picamera2()
-    # config = picam2.create_preview_configuration(main={"size": (640, 480)})
+    picam2 = picamera2.Picamera2()
     config = picam2.create_still_configuration(main={"size": (640, 480)})
     picam2.configure(config)
     picam2.start()
-    return picam2
+    options.picam2 = picam2
+
+    return options
 
 # Threshold 200 doesn't work
 # 100 works, but slow motion is detected
 # 50 works, pretty well
 # 25 works
 # min_area up to 15000 works since that's the change area
-def detect_motion_ai_camera(picam2, threshold=25, min_area=500, image_save_dir="motion_images"):
+def detect_motion_ai_camera(options: MotionOptions):
     """
     Detect motion using Raspberry Pi Camera Module and Picamera2.
 
@@ -35,47 +91,44 @@ def detect_motion_ai_camera(picam2, threshold=25, min_area=500, image_save_dir="
     """
     canDisplay = os.environ.get("DISPLAY") is not None
     print("started.")
-    print(f"  Can display: {canDisplay}")
-    print(f"  Threshold:   {threshold}")
-    print(f"  Min Area:    {min_area}")
+    print(f"  Can display: {options.can_display}")
+    print(f"  Threshold:   {options.threshold}")
+    print(f"  Min Area:    {options.min_area}")
 
     # Capture the first frame
-    frame = picam2.capture_array()
+    frame = options.picam2.capture_array()
     print("Captured array")
     prev_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     prev_gray = cv2.GaussianBlur(prev_gray, (21, 21), 0)
 
-    print("Motion detection started. Press 'q' to quit.")
+    print("Motion detection started.")
 
     motionDetected = None
     logged = False
 
     try:
         while True:
-            if (motionDetected is not None) and (time.time() - motionDetected > 2):
+            if ((motionDetected is not None) and
+                (time.time() - motionDetected > options.image_delay_seconds)):
                 # capture the current image and write it out
-                print(f"Motion detected at {motionDetected}, and > 2 sec has passed")
-                frame = cv2.cvtColor(picam2.capture_array(), cv2.COLOR_BGR2RGB)
-                path = os.path.join(image_save_dir, "motion_detected.jpg")
+                print("Motion detected at %s, and > %.1f sec has passed" %
+                      (motionDetected, options.image_delay_seconds))
+                frame = cv2.cvtColor(options.picam2.capture_array(), cv2.COLOR_BGR2RGB)
+                path = os.path.join(options.image_save_dir, "motion_detected.jpg")
                 cv2.imwrite(path, frame)
-                motionDetected = None
-                logged = False
                 return path
-                break
             elif motionDetected is not None:
-                if (not logged):
+                if not logged:
                     print(f"Motion detected at {motionDetected}, but not in the last 2 seconds.")
                     logged = True
                 continue
 
             # Capture the next frame
-            # print("About to capture array")
-            frame = picam2.capture_array()
-            # print("Captured array")
+            frame = options.picam2.capture_array()
+
             gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             gray_frame = cv2.GaussianBlur(gray_frame, (21, 21), 0)
 
-            # print("about to do diff")
             # Calculate the difference between frames
             frame_delta = cv2.absdiff(prev_gray, gray_frame)
 
@@ -83,17 +136,14 @@ def detect_motion_ai_camera(picam2, threshold=25, min_area=500, image_save_dir="
             if canDisplay:
                 cv2.imshow("Frame Delta", frame_delta)
 
-            # print("about to do threashold")
             # Apply a binary threshold
-            _, thresh = cv2.threshold(frame_delta, threshold, 255, cv2.THRESH_BINARY)
+            _, thresh = cv2.threshold(frame_delta, options.threshold, 255, cv2.THRESH_BINARY)
 
-            # print("about to do dilate")
             # Dilate the threshold image to fill in holes
             thresh = cv2.dilate(thresh, None, iterations=2)
 
-            # print("about to do findCoutours")
-            # Find contours
-            contours, _ = cv2.findContours(thresh.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            contours, _ = cv2.findContours(thresh.copy(),
+                                            cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
             rectSet = False
             # Loop through contours and detect motion
@@ -101,7 +151,7 @@ def detect_motion_ai_camera(picam2, threshold=25, min_area=500, image_save_dir="
             for contour in contours:
                 area = cv2.contourArea(contour)
                 # print(f"Contour Area: {area} min_area is {min_area}")  # Debugging output
-                if area < min_area:
+                if area < options.min_area:
                     continue
 
                 # Get bounding box for the contour
@@ -113,27 +163,15 @@ def detect_motion_ai_camera(picam2, threshold=25, min_area=500, image_save_dir="
 
                 # write out the current cv2 image
                 motionDetected = time.time()
-                cv2.imwrite(os.path.join(image_save_dir, "motion_detected_cv2.jpg"), frame)
-
-            # if not rectSet:
-                # print("No motion detected.")
-                # continue
+                cv2.imwrite(os.path.join(options.image_save_dir, "motion_detected_cv2.jpg"), cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
 
             # Display the frames
             if canDisplay:
                 cv2.imshow("RGB Camera feed", cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-                # cv2.imshow("Camera Feed", frame) Blue/Red are swapped
                 cv2.imshow("Threshold", thresh)
-
-            # Prompt user to press a key before continuing
-            # input("Press any key to continue...")
 
             # Update previous frame
             prev_gray = gray_frame.copy()
-
-            # Break loop on 'q' key press
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                break
 
     except KeyboardInterrupt:
         print("Motion detection interrupted.")
@@ -146,24 +184,28 @@ def detect_motion_ai_camera(picam2, threshold=25, min_area=500, image_save_dir="
     # print("Motion detection stopped.")
     # picam2.stop()
 
-def detect_motion(last_email_time, CONTOUR_THRESHOLD, IMAGE_SAVE_DIR, CHECK_INTERVAL, time_limit):
-    global picam2
+def detect_motion(options: MotionOptions):
+
+    email_options = send_email.get_email_config()
+
     while True:
-        image_path = detect_motion_ai_camera(picam2, 25, 1000, IMAGE_SAVE_DIR)
-        # to do only send if not w/i last hour
-        send_email(image_path)
-        print(f"Sleeping for {time_limit} minutes")
-        time.sleep(time_limit*60)  # Sleep for 5 minutes
+        image_path = detect_motion_ai_camera(options)
+
+        send_email.send_email(email_options, image_path)
+
+        # wait before sending another email
+        print(f"Sleeping for {options.time_limit_minutes} minutes")
+        time.sleep(options.time_limit_minutes*60)
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Motion detection with optional threshold and min_area.")
-    parser.add_argument("--threshold", type=int, default=25, help="Threshold value for motion detection.")
-    parser.add_argument("--min_area", type=int, default=500, help="Minimum area size for motion detection.")
-        
-    args = parser.parse_args()
+    config = setup()
 
-    setup_camera()
-    detect_motion(time.time(), 25, "motion_images", 19, .5)
+    if config is None:
+        logger.error('Missing config in motion.ini')
+    elif config.picam2 is None:
+        logger.error('Camera not initialized')
+    else:
+        detect_motion(config)
 
-    picam2.stop()
+        config.picam2.stop()

@@ -45,19 +45,19 @@ def detect_motion_ai_camera(picam2, threshold=25, min_area=500):
 
     try:
         while True:
-            if (motionDetected is not None) and (time.time() - motionDetected > 2):
-                # capture the current image and write it out
-                print(f"Motion detected at {motionDetected}, and > 2 sec has passed")
-                frame = picam2.capture_array()
-                cv2.imwrite("motion_images/motion_detected.jpg", frame)
-                motionDetected = None
-                logged = False
-                break
-            elif motionDetected is not None:
-                if (not logged):
-                    print(f"Motion detected at {motionDetected}, but not in the last 2 seconds.")
-                    logged = True
-                continue
+            # if (motionDetected is not None) and (time.time() - motionDetected > 2):
+            #     # capture the current image and write it out
+            #     print(f"Motion detected at {motionDetected}, and > 2 sec has passed")
+            #     frame = picam2.capture_array()
+            #     cv2.imwrite("motion_images/motion_detected.jpg", frame)
+            #     motionDetected = None
+            #     logged = False
+            #     break
+            # elif motionDetected is not None:
+            #     if (not logged):
+            #         print(f"Motion detected at {motionDetected}, but not in the last 2 seconds.")
+            #         logged = True
+            #     continue
 
             # Capture the next frame
             # print("About to capture array")
@@ -98,7 +98,7 @@ def detect_motion_ai_camera(picam2, threshold=25, min_area=500):
                 # Get bounding box for the contour
                 (x, y, w, h) = cv2.boundingRect(contour)
                 # Draw rectangle around detected motion
-                print(f"Motion detected at ({x}, {y}) with width {w} and height {h} area {area}")
+                print(f"Motion detected at ({x}, {y}) with width {w} and height {h} area {area} min_area {min_area}")
                 rectSet = True
                 cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
 
@@ -141,7 +141,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Motion detection with optional threshold and min_area.")
     parser.add_argument("--threshold", type=int, default=25, help="Threshold value for motion detection.")
     parser.add_argument("--min_area", type=int, default=500, help="Minimum area size for motion detection.")
-        
+
     args = parser.parse_args()
 
     picam2 = initCamera()
