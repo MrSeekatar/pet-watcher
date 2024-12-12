@@ -1,57 +1,63 @@
+"""
+Send an email with an image attachment
+"""
+
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.mime.application import MIMEApplication
 import os
-import sys
 import configparser
 import logging
+logger = logging.getLogger("detector")
 
-logger = logging.getLogger(__name__)
-console_handler = logging.StreamHandler(sys.stdout)
-console_handler.setLevel(logging.INFO)
-formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-console_handler.setFormatter(formatter)
-logger.addHandler(console_handler)
-logger.setLevel(logging.INFO)
 
 class MailOptions:
     """
     Class to hold email configuration options
 
     """
-    def __init__(self, mail: dict):
-        if mail is None:
+    def __init__(self, mail_config: dict):
+        if mail_config is None:
             return
         # required fields
-        self.username = mail['username']
-        self.password = mail['password']
-        self.to_email = mail['to']
+        self.username = mail_config['username']
+        self.password = mail_config['password']
+        self.to_email = mail_config['to']
 
         # optional fields
-        self.from_email = mail.get('from', 'Cat Watcher')
-        self.smtp_server = mail.get('smtp_server', 'smtp.gmail.com')
-        self.smtp_port = mail.getint('smtp_port', 587)
-        self.subject = mail.get('subject', 'Motion Detected')
-        self.message = mail.get('message','Motion has been detected by your Raspberry Pi camera. Please find the attached image.')
+        self.from_email = mail_config.get('from', 'Cat Watcher')
+        self.smtp_server = mail_config.get('smtp_server', 'smtp.gmail.com')
+        self.smtp_port = mail_config.getint('smtp_port', 587)
+        self.subject = mail_config.get('subject', 'Motion Detected')
+        self.message = mail_config.get('message','Motion has been detected the Cat Detector Van. '
+                                'Please see the attached image.')
 
 def get_email_config() -> MailOptions | None:
+    """
+    Get the email configuration from the email.ini file
+
+    Returns:
+        MailOptions: Email configuration options if ok
+        None: If there was an error in configuration
+    """
+
     config = configparser.ConfigParser()
     config.read('email.ini')
-    mail = config['email']
-    if mail is None:
+    mail_config = config['email']
+    if mail_config is None:
         logger.error('Email configuration not found in email.ini')
         return None
-    else:
-        ret = MailOptions(mail)
-        logger.info('Email settings:')
-        logger.info('  Username:   %s', ret.username)
-        logger.info('  ApiKey:     %s...', ret.password[:3])
-        logger.info('  To:         %s', ret.to_email)
+
+    ret = MailOptions(mail_config)
+    logger.info('Email settings:')
+    logger.info('  Username:   %s', ret.username)
+    logger.info('  ApiKey:     %s...', ret.password[:3])
+    logger.info('  To:         %s', ret.to_email)
 
     return ret
 
-def send_email(mail : MailOptions, image_path : str) -> None:
+def send_email(mail_options : MailOptions, image_path : str) -> None:
     """
     Send an email with an image attachment
 
@@ -64,15 +70,17 @@ def send_email(mail : MailOptions, image_path : str) -> None:
     if image_path is None:
         logger.info('No image to send')
         return
-    
+
+    logger.info("Sending email with image: %s", image_path)
+
     try:
         # Prepare the email
         msg = MIMEMultipart()
-        msg['From'] = mail.from_email
-        msg['To'] = mail.to_email
-        msg['Subject'] = mail.subject
+        msg['From'] = mail_options.from_email
+        msg['To'] = mail_options.to_email
+        msg['Subject'] = mail_options.subject
 
-        body = mail.message
+        body = mail_options.message
         msg.attach(MIMEText(body, 'plain'))
 
         # Attach the image
@@ -82,17 +90,17 @@ def send_email(mail : MailOptions, image_path : str) -> None:
             msg.attach(part)
 
         # Connect to the SMTP server and send the email
-        server = smtplib.SMTP(mail.smtp_server, mail.smtp_port)
+        server = smtplib.SMTP(mail_options.smtp_server, mail_options.smtp_port)
         server.starttls()
-        server.login(mail.username, mail.password)
+        server.login(mail_options.username, mail_options.password)
         text = msg.as_string()
-        server.sendmail(mail.from_email, mail.to_email, text)
+        server.sendmail(mail_options.from_email, mail_options.to_email, text)
         server.quit()
 
-        logger.info(f"Email sent with image: {image_path}")
+        logger.info("Email sent with image: %s", image_path)
 
-    except Exception as e:
-        logger.exception(f"Error sending email: {e}")
+    except Exception as e: # pylint: disable=C0103,W0718
+        logger.exception("Error sending email: %s", e)
 
 if __name__ == "__main__":
     mail = get_email_config()

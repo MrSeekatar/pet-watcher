@@ -8,13 +8,12 @@ import os
 def initCamera():
     # Initialize the camera
     picam2 = Picamera2()
-    # config = picam2.create_preview_configuration(main={"size": (640, 480)})
     config = picam2.create_still_configuration(main={"size": (640, 480)})
     picam2.configure(config)
     picam2.start()
     return picam2
 
-# 200 doesn't work
+# Threshold 200 doesn't work
 # 100 works, but slow motion is detected
 # 50 works, pretty well
 # 25 works
@@ -38,7 +37,7 @@ def detect_motion_ai_camera(picam2, threshold=25, min_area=500):
     prev_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     prev_gray = cv2.GaussianBlur(prev_gray, (21, 21), 0)
 
-    print("Motion detection started. Press 'q' to quit.")
+    print("Motion detection started.")
 
     motionDetected = None
     logged = False
@@ -60,13 +59,11 @@ def detect_motion_ai_camera(picam2, threshold=25, min_area=500):
             #     continue
 
             # Capture the next frame
-            # print("About to capture array")
             frame = picam2.capture_array()
-            # print("Captured array")
+
             gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             gray_frame = cv2.GaussianBlur(gray_frame, (21, 21), 0)
 
-            # print("about to do diff")
             # Calculate the difference between frames
             frame_delta = cv2.absdiff(prev_gray, gray_frame)
 
@@ -74,17 +71,14 @@ def detect_motion_ai_camera(picam2, threshold=25, min_area=500):
             if canDisplay:
                 cv2.imshow("Frame Delta", frame_delta)
 
-            # print("about to do threashold")
             # Apply a binary threshold
             _, thresh = cv2.threshold(frame_delta, threshold, 255, cv2.THRESH_BINARY)
 
-            # print("about to do dilate")
             # Dilate the threshold image to fill in holes
             thresh = cv2.dilate(thresh, None, iterations=2)
 
-            # print("about to do findCoutours")
-            # Find contours
-            contours, _ = cv2.findContours(thresh.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            contours, _ = cv2.findContours(thresh.copy(),
+                                            cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
             rectSet = False
             # Loop through contours and detect motion
@@ -98,7 +92,7 @@ def detect_motion_ai_camera(picam2, threshold=25, min_area=500):
                 # Get bounding box for the contour
                 (x, y, w, h) = cv2.boundingRect(contour)
                 # Draw rectangle around detected motion
-                print(f"Motion detected at ({x}, {y}) with width {w} and height {h} area {area} min_area {min_area}")
+                print(f"Motion detected at ({x}, {y}) with width {w} and height {h} area {area}")
                 rectSet = True
                 cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
 
@@ -106,25 +100,17 @@ def detect_motion_ai_camera(picam2, threshold=25, min_area=500):
                 motionDetected = time.time()
                 cv2.imwrite("motion_images/motion_detected_cv2.jpg", frame)
 
-            # if not rectSet:
-                # print("No motion detected.")
-                # continue
-
             # Display the frames
             if canDisplay:
                 cv2.imshow("RGB Camera feed", cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-                # cv2.imshow("Camera Feed", frame) Blue/Red are swapped
                 cv2.imshow("Threshold", thresh)
-
-            # Prompt user to press a key before continuing
-            # input("Press any key to continue...")
 
             # Update previous frame
             prev_gray = gray_frame.copy()
 
             # Break loop on 'q' key press
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                break
+            # if don't have this the preview window will show correctly or refresh
+            cv2.waitKey(1)
 
     except KeyboardInterrupt:
         print("Motion detection interrupted.")

@@ -3,12 +3,7 @@ import numpy as np
 
 def detect_motion_ai_camera(camera_index=0, threshold=25, min_area=500):
     """
-    Detect motion using a connected camera (e.g., Raspberry Pi camera).
-
-    Args:
-        camera_index (int): The index of the camera (default is 0 for the first camera).
-        threshold (int): The threshold for detecting changes between frames.
-        min_area (int): Minimum contour area to qualify as motion.
+    Couldn't get this to work on the Pi
     """
     # Initialize the video capture object
     cap = cv2.VideoCapture(camera_index)
