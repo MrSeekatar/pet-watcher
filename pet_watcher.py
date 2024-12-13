@@ -5,7 +5,7 @@ This is the main script for the pet-watcher project.
 import logging
 import logging.config
 
-import detect_motion_3 as detect_motion
+import detect_motion
 
 logger = logging.getLogger("detector")
 logger.setLevel(logging.DEBUG)

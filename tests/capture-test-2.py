@@ -1,9 +1,15 @@
 #! /usr/bin/env python3
+"""
+Motion detection without email, used initially for getting it working.
+
+This should be run with a GUI, not SSH, etc. since it shows images.
+
+Now a cleaned up version of this is in detect_motion.py
+"""
 import argparse
 import time
 from picamera2 import Picamera2
 import cv2
-import os
 
 def initCamera():
     # Initialize the camera

@@ -91,7 +91,7 @@ def send_email(mail_options : MailOptions, image_path : str) -> None:
         server.starttls()
         server.login(mail_options.username, mail_options.password)
         text = msg.as_string()
-        server.sendmail(mail_options.from_email, mail_options.to_email, text)
+        server.sendmail(mail_options.from_email, mail_options.to_email.split(','), text)
         server.quit()
 
         logger.info("Email sent with image: %s", image_path)
