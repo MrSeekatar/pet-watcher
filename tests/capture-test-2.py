@@ -10,6 +10,7 @@ import argparse
 import time
 from picamera2 import Picamera2
 import cv2
+import os
 
 def initCamera():
     # Initialize the camera
@@ -17,6 +18,9 @@ def initCamera():
     config = picam2.create_still_configuration(main={"size": (640, 480)})
     picam2.configure(config)
     picam2.start()
+    if not os.path.exists("motion_images"):
+        os.makedirs("motion_images")
+
     return picam2
 
 # Threshold 200 doesn't work
@@ -103,7 +107,6 @@ def detect_motion_ai_camera(picam2, threshold=25, min_area=500):
                 cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
 
                 # write out the current cv2 image
-                motionDetected = time.time()
                 cv2.imwrite("motion_images/motion_detected_cv2.jpg", frame)
 
             # Display the frames
