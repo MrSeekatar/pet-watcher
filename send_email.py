@@ -1,7 +1,6 @@
 """
 Send an email with an image attachment
 """
-
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -9,14 +8,12 @@ from email.mime.application import MIMEApplication
 import os
 import configparser
 import logging
+
 logger = logging.getLogger("detector")
 
 
-class MailOptions:
-    """
-    Class to hold email configuration options
-
-    """
+class MailOptions: # pylint: disable=R0902,R0903
+    """ Class to hold email configuration options """
     def __init__(self, mail_config: dict):
         if mail_config is None:
             return

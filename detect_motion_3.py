@@ -5,7 +5,6 @@ Motion detection using Raspberry Pi Camera Module and Picamera2.
 import configparser
 import logging
 import os
-import sys
 import time
 
 import cv2
@@ -20,12 +19,8 @@ import send_email
 
 logger = logging.getLogger("detector")
 
-class MotionOptions:
-    """
-    This class is used to store the motion options
-
-
-    """
+class MotionOptions: # pylint: disable=R0902,R0903
+    """ This class is used to store the motion options """
     def __init__(self, motion_config: dict):
         if motion_config is None:
             return
@@ -37,7 +32,8 @@ class MotionOptions:
         self.has_display = os.environ.get("DISPLAY") is not None
         self.image_delay_seconds = motion_config.getfloat('image_delay_seconds', 1.0)
         self.time_limit_minutes = motion_config.getint('time_limit_minutes', 2)
-
+        self.max_hour = motion_config.getint('max_hour', 21)
+        self.min_hour = motion_config.getint('min_hour', 8)
         self.picam2 : picamera2.picamera2 = None
 
     @staticmethod
@@ -55,10 +51,14 @@ class MotionOptions:
 
         ret = MotionOptions(motion)
         logger.info('Motion settings:')
-        logger.info('  Threshold:   %s', ret.threshold)
-        logger.info('  Min Area:    %s', ret.min_area)
-        logger.info('  Image Save Dir: %s', ret.image_save_dir)
-        logger.info('  Can Display: %s', ret.has_display)
+        logger.info('  Threshold      : %s', ret.threshold)
+        logger.info('  Min Area       : %s', ret.min_area)
+        logger.info('  Image Save Dir : %s', ret.image_save_dir)
+        logger.info('  Has Display    : %s', ret.has_display)
+        logger.info('  Image Delay    : %ds', ret.image_delay_seconds)
+        logger.info('  Time Limit     : %dm', ret.time_limit_minutes)
+        logger.info('  Min Hour       : %d', ret.min_hour)
+        logger.info('  Max Hour       : %d', ret.max_hour)
 
         return ret
 
@@ -90,7 +90,7 @@ def setup() -> MotionOptions | None:
 # 50 works, pretty well
 # 25 works
 # min_area up to 15000 works since that's the change area
-def detect_motion_ai_camera(options: MotionOptions) -> str | None:
+def detect_motion_ai_camera(options: MotionOptions) -> str | None: # pylint: disable=R0914
     """
     Detect motion using Raspberry Pi Camera Module and Picamera2.
 
@@ -103,7 +103,7 @@ def detect_motion_ai_camera(options: MotionOptions) -> str | None:
     prev_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     prev_gray = cv2.GaussianBlur(prev_gray, (21, 21), 0)
 
-    logger.debug("In motion loop.")
+    logger.info("Starting motion check.")
 
     motion_detected = None
     logged = False
@@ -113,8 +113,8 @@ def detect_motion_ai_camera(options: MotionOptions) -> str | None:
             if ((motion_detected is not None) and
                 (time.time() - motion_detected > options.image_delay_seconds)):
                 # capture the current image and write it out
-                logger.debug("Motion detected at %s, and > %.1f sec has passed" %
-                      (motion_detected, options.image_delay_seconds))
+                logger.debug("Motion detected at %s, and > %.1f sec has passed",
+                      motion_detected, options.image_delay_seconds)
                 frame = cv2.cvtColor(options.picam2.capture_array(), cv2.COLOR_BGR2RGB)
                 path = os.path.join(options.image_save_dir, "motion_detected.jpg")
                 cv2.imwrite(path, frame)
@@ -122,7 +122,10 @@ def detect_motion_ai_camera(options: MotionOptions) -> str | None:
 
             if motion_detected is not None:
                 if not logged:
-                    logger.debug(f"Motion detected at {motion_detected}, but not in the last 2 seconds.")
+                    logger.debug("Motion detected at %s, but not in the last %d seconds.",
+                                 time.strftime("%I:%M",
+                                               time.localtime(motion_detected)),
+                                                options.image_delay_seconds)
                     logged = True
                 continue
 
@@ -152,14 +155,15 @@ def detect_motion_ai_camera(options: MotionOptions) -> str | None:
             # logger.debug("Found %d contours", len(contours)) # verrrry noisy
             for contour in contours:
                 area = cv2.contourArea(contour)
-                logger.debug("Contour Area: %s min_area is %s", area, options.min_area)  # Debugging output
+                logger.debug("Contour Area: %s min_area is %s", area, options.min_area)
                 if area < options.min_area:
                     continue
 
                 # Get bounding box for the contour
                 (x, y, w, h) = cv2.boundingRect(contour) # pylint: disable=C0103
                 # Draw rectangle around detected motion
-                logger.debug(f"Motion detected at ({x}, {y}) with width {w} and height {h} area {area}")
+                logger.debug("Motion detected at (%d, %d) with width %d and height %d area %d",
+                             x, y, w, w, area)
                 cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
 
                 # write out the current cv2 image
@@ -180,6 +184,8 @@ def detect_motion_ai_camera(options: MotionOptions) -> str | None:
 
     except KeyboardInterrupt:
         logger.debug("Motion detection interrupted.")
+        options.picam2.stop()
+        cv2.destroyAllWindows()
 
     return None
 
@@ -196,26 +202,19 @@ def detect_motion(options: MotionOptions):
 
     email_options = send_email.get_email_config()
 
-    logger.info("Motion detection started.")
-    logger.info("  Can display: %s", options.has_display)
-    logger.info("  Threshold:   %d", options.threshold)
-    logger.info("  Min Area:    %d", options.min_area)
-
     while True:
+        now = time.localtime().tm_hour
+        if (now >= options.max_hour or now < options.min_hour):
+            logger.info("Sleeping for 10m since current hour out of range. %d < %d <= %d", options.min_hour, now, options.max_hour)
+            time.sleep(10*60)
+            continue
         image_path = detect_motion_ai_camera(options)
 
         send_email.send_email(email_options, image_path)
 
         # wait before sending another email
-        logger.info(f"Sleeping for {options.time_limit_minutes} minutes since just sent an email")
+        logger.info("Sleeping for %d minutes since just sent an email", options.time_limit_minutes)
         time.sleep(options.time_limit_minutes*60)
-
-def stop():
-    """
-    Stop the camera, clean up
-    """
-    config.picam2.stop()
-    cv2.destroyAllWindows()
 
 if __name__ == "__main__":
     config = setup()
@@ -226,5 +225,3 @@ if __name__ == "__main__":
         logger.error('Camera not initialized')
     else:
         detect_motion(config)
-
-        config.picam2.stop()

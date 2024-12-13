@@ -18,15 +18,29 @@ python3 pet-watcher.py &
 
 I bought a 5B that came with the OS installed with the UI and it ran better. I bought a new AI camera, too, and didn't get the false movements I got so many times on the 3B with an older camera.
 
+## Configuration
+
+`motion.ini` has settings to control the capture of motion from the camera and frequency of sending. It is included in the repo with default values.
+
+`email.ini` has settings for sending emails and is not included in the repo since it includes secrets. Here's a sample file
+
+```text
+[email]
+username = ...
+password = ...
+to = ...
+
+; default values
+;from_email = Cat Watcher
+;smtp_server = smtp.gmail.com
+;smtp_port = 587
+;subject = Motion Detected
+;message = Motion has been detected by the Cat Detector Van.
+```
+
 ## Running
 
-This sends email via SMTP to Gmail for now. These environment variables must be set to be able to send emails.
 
-```bash
-export mail_appKey=...
-export mail_username=...
-export mail_to=...
-```
 
 ## One-time Setup
 

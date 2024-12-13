@@ -29,5 +29,3 @@ elif config.picam2 is None:
     logger.error('Camera not initialized')
 else:
     detect_motion.detect_motion(config)
-
-    detect_motion.stop()
