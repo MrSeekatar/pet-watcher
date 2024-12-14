@@ -9,7 +9,7 @@ run()
 
 lint()
 {
-    pylint pet_watcher.py send_email.py detect_motion_3.py
+    pylint pet_watcher.py send_email.py detect_motion.py
 }
 
 Help()

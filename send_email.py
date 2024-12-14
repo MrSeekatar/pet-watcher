@@ -4,8 +4,7 @@ Send an email with an image attachment
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from email.mime.application import MIMEApplication
-import os
+from email.mime.image import MIMEImage
 import configparser
 import logging
 
@@ -54,13 +53,18 @@ def get_email_config() -> MailOptions | None:
 
     return ret
 
-def send_email(mail_options : MailOptions, image_path : str) -> None:
+def send_email(mail_options : MailOptions,
+                image_path : str,
+                trigger_image_path : str,
+                seconds: int) -> None:
     """
     Send an email with an image attachment
 
     Args:
         mail: MailOptions object with email configuration
         image_path: Path to the image to send
+        trigger_image_path: Path to the second image to send
+        seconds: The number of seconds after the trigger
 
     """
 
@@ -72,19 +76,33 @@ def send_email(mail_options : MailOptions, image_path : str) -> None:
 
     try:
         # Prepare the email
-        msg = MIMEMultipart()
+        msg = MIMEMultipart('related')
         msg['From'] = mail_options.from_email
         msg['To'] = mail_options.to_email
         msg['Subject'] = mail_options.subject
 
-        body = mail_options.message
-        msg.attach(MIMEText(body, 'plain'))
+        msg_alternative = MIMEMultipart('alternative')
+        msg.attach(msg_alternative)
 
-        # Attach the image
+        body = mail_options.message
+        msg_text = (f'<html><body>{body}<br><br>{seconds} second{"" if seconds == 1 else "s"}'
+                    ' after trigger<img src="cid:image1"><br>')
+
+        # Attach the first image inline
         with open(image_path, "rb") as attachment:
-            part = MIMEApplication(attachment.read(), Name=os.path.basename(image_path))
-            part['Content-Disposition'] = f'attachment; filename="{os.path.basename(image_path)}"'
-            msg.attach(part)
+            img = MIMEImage(attachment.read())
+            img.add_header('Content-ID', '<image1>')
+            msg.attach(img)
+
+        if trigger_image_path is not None:
+            msg_text += 'Trigger image<img src="cid:image2"><br>'
+            with open(trigger_image_path, "rb") as attachment:
+                img = MIMEImage(attachment.read())
+                img.add_header('Content-ID', '<image2>')
+                msg.attach(img)
+
+        msg_text += '</body></html>'
+        msg_alternative.attach(MIMEText(msg_text, 'html'))
 
         # Connect to the SMTP server and send the email
         server = smtplib.SMTP(mail_options.smtp_server, mail_options.smtp_port)
@@ -100,5 +118,22 @@ def send_email(mail_options : MailOptions, image_path : str) -> None:
         logger.exception("Error sending email: %s", e)
 
 if __name__ == "__main__":
+    logger = logging.getLogger("detector")
+    logger.setLevel(logging.DEBUG)
+
+    # Create console handler with a higher log level
+    ch = logging.StreamHandler()
+    ch.setLevel(logging.DEBUG)  # Set to DEBUG to capture all messages
+
+    # Create formatter and add it to the handler
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+    ch.setFormatter(formatter)
+
+    # Add the handler to the logger
+    logger.addHandler(ch)
+
     mail = get_email_config()
-    send_email(mail, "motion_images/motion_detected.jpg")
+    send_email(mail,
+               "motion_images/motion_detected.jpg",
+               "motion_images/motion_detected_cv2.jpg",
+               1)

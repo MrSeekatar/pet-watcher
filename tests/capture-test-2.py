@@ -68,14 +68,22 @@ def detect_motion_ai_camera(picam2, threshold=25, min_area=500):
             #         logged = True
             #     continue
 
+            cv2.imwrite("motion_images/0_prev_gray.jpg", prev_gray)
+
             # Capture the next frame
             frame = picam2.capture_array()
+            cv2.imwrite("motion_images/1_image.jpg", frame)
 
             gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            cv2.imwrite("motion_images/2_gray.jpg", gray_frame)
+
             gray_frame = cv2.GaussianBlur(gray_frame, (21, 21), 0)
+            cv2.imwrite("motion_images/3_blur.jpg", gray_frame)
 
             # Calculate the difference between frames
             frame_delta = cv2.absdiff(prev_gray, gray_frame)
+            cv2.imwrite("motion_images/4_diff.jpg", frame_delta)
+
 
             # Display the frame_delta for debugging
             if canDisplay:
@@ -83,9 +91,13 @@ def detect_motion_ai_camera(picam2, threshold=25, min_area=500):
 
             # Apply a binary threshold
             _, thresh = cv2.threshold(frame_delta, threshold, 255, cv2.THRESH_BINARY)
+            cv2.imwrite("motion_images/5_thresh.jpg", thresh)
 
             # Dilate the threshold image to fill in holes
             thresh = cv2.dilate(thresh, None, iterations=2)
+            cv2.imwrite("motion_images/6_dialated.jpg", thresh)
+            if canDisplay:
+                cv2.imshow("Dialated", thresh)
 
             contours, _ = cv2.findContours(thresh.copy(),
                                             cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -107,7 +119,8 @@ def detect_motion_ai_camera(picam2, threshold=25, min_area=500):
                 cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
 
                 # write out the current cv2 image
-                cv2.imwrite("motion_images/motion_detected_cv2.jpg", frame)
+                cv2.imwrite("motion_images/6_motion_detected_cv2.jpg", frame)
+                os.abort()
 
             # Display the frames
             if canDisplay:

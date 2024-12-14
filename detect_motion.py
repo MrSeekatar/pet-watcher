@@ -118,7 +118,7 @@ def detect_motion_ai_camera(options: MotionOptions) -> str | None: # pylint: dis
                 frame = cv2.cvtColor(options.picam2.capture_array(), cv2.COLOR_BGR2RGB)
                 path = os.path.join(options.image_save_dir, "motion_detected.jpg")
                 cv2.imwrite(path, frame)
-                return path
+                return path,os.path.join(options.image_save_dir, "motion_detected_cv2.jpg")
 
             if motion_detected is not None:
                 if not logged:
@@ -208,9 +208,9 @@ def detect_motion(options: MotionOptions):
             logger.info("Sleeping for 10m since current hour out of range. %d < %d <= %d", options.min_hour, now, options.max_hour)
             time.sleep(10*60)
             continue
-        image_path = detect_motion_ai_camera(options)
+        image_path, triggerImage = detect_motion_ai_camera(options)
 
-        send_email.send_email(email_options, image_path)
+        send_email.send_email(email_options, image_path, triggerImage, options.image_delay_seconds)
 
         # wait before sending another email
         logger.info("Sleeping for %d minutes since just sent an email", options.time_limit_minutes)
