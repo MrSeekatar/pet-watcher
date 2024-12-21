@@ -1,10 +1,12 @@
-# example from the PiCamera pdf
+# example from the PiCamera pdf, to take a photo
+import os
 from picamera2 import Picamera2, Preview
-import time
+
 picam2 = Picamera2()
 camera_config = picam2.create_preview_configuration()
 picam2.configure(camera_config)
-picam2.start_preview(Preview.DRM)
+if (os.environ.get("DISPLAY") is not None):
+    picam2.start_preview(Preview.DRM)
 picam2.start()
-time.sleep(2)
 picam2.capture_file("test.jpg")
+print("Image written to test.jpg")
