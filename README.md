@@ -1,6 +1,6 @@
 # Pet Watcher for the Raspberry Pi
 
-This is a Raspberry Pi Python app that can be used to watch for movement and send an image of the movement. It was specifically designed for watching a pet while we're away, but can be adapted for other uses.
+This is a Raspberry Pi Python app that can be used to watch for movement and email an image at that time. It was specifically designed for watching a pet while away, but can be adapted for other uses.
 
 I poked around on the web for examples, and thought I'd let AI have a shot. I started by asking ChatGPT this
 
@@ -8,15 +8,13 @@ I poked around on the web for examples, and thought I'd let AI have a shot. I st
 Create an application for the raspberry pi that uses a camera and when it detects movement  sends an email to me, if one hasn't been sent within the last hour
 ```
 
-It did _pretty_ well. The basics were there, but it used `picamera` instead of `picamera2`. After telling it to use that, it was pretty close, and only took an hour or so to get things working.
+It did _pretty_ well and only took an hour or so to get things working.
 
-When running on a 3B with no UI, I found that running it in an SSH prompt would break the connection. (As when running in VSCode Remoting). I found it would work ok, if run in the background.
+When running it over SSH, the connection would break the connection since it initially always called `imgshow`. Adding a check for the `DISPLAY` environment variable allowed me to run in the the GUI or SSH.
 
-```bash
-python3 pet-watcher.py &
-```
+Initially I used a 3B and 1.3 camera, and it was flaky. I bought a 5B and the new AI camera, too, and it ran better. Once I got it running smoothly, I tried the 3B, and it worked fine, so it must have been a poor initial implmentation (damn you, ChatGPT!) The next version will use the AI Camera to detect a cat.
 
-I bought a 5B that came with the OS installed with the UI and it ran better. I bought a new AI camera, too, and didn't get the false movements I got so many times on the 3B with an older (1.3) camera. The next version will use the AI Camera to detect a cat.
+After digging into the OpenCV doc, I see where ChatGPT got its sample code since it was very similar to their Python tutorials.
 
 ## Configuration
 
@@ -96,6 +94,7 @@ This is how ChatGPT explains how the motion detection works
 >
 >    - The live camera feed and the thresholded difference image are displayed in real-time. Detected motion is highlighted with bounding boxes in the live feed.
 >
+
 ### Key Points of Motion Detection:
 
   - Motion is detected only if there is a significant pixel difference between two consecutive frames, and the detected change is larger than the specified min_area.
@@ -118,4 +117,5 @@ For example:
 - [PiCamera2 Manual (pdf)](https://datasheets.raspberrypi.com/camera/picamera2-manual.pdf)
 - [Camera Documenation](https://www.raspberrypi.com/documentation/accessories/camera.html)
 - [OpenCV 4.10 doc](https://docs.opencv.org/4.10.0/)
+- [OpenCV 4.x Python Tutorials](https://docs.opencv.org/4.x/d6/d00/tutorial_py_root.html)
 - [AI Camera Documentation](https://www.raspberrypi.com/documentation/accessories/ai-camera.html)
